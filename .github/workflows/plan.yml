@@ -1,0 +1,38 @@
+# Mise à jour automatique du plan de chasse (lue par l'application au premier lancement de chaque jour).
+# Chaque nuit : export depuis le serveur public de l'ANEF, contrôles de sécurité, publication dans la release
+# « plan-data » seulement si le plan a changé. En cas de changement suspect (réserve disparue, plus de 2 % de zones
+# disparues, export incomplet), rien n'est publié et le job échoue : GitHub envoie un e-mail au propriétaire.
+name: Plan de chasse
+
+on:
+  schedule:
+    - cron: "15 2 * * *"   # 02:15 UTC (03:15 au Maroc)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plan
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Dépendances
+        run: pip install requests simplekml shapely==2.1.2 pyshp==2.3.1
+      - name: Export, contrôles et publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_REPO: ${{ github.repository }}
+          PYTHONIOENCODING: utf-8
+        run: python tools/publish-plan.py --ci
